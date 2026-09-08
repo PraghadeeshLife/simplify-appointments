@@ -7,7 +7,9 @@ import { useAuth } from '@/contexts/AuthContext'
 const WHATSAPP_DEMO_URL =
   'https://wa.me/916379701865?text=Hi%2C%20I%27d%20like%20to%20request%20a%20demo%20of%20Simplify%20Smart%20Booking.'
 
-const EXAMPLE_FLOW_STEPS = [
+type FlowMessage = { from: 'customer' | 'bot'; text: string }
+
+const EXAMPLE_FLOW_STEPS: { label: string; messages: FlowMessage[] }[] = [
   {
     label: 'Customer reaches out',
     messages: [
@@ -42,31 +44,41 @@ export default function Home() {
   const { user, loading } = useAuth()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeStep, setActiveStep] = useState(0)
-  const [visibleMessages, setVisibleMessages] = useState<typeof EXAMPLE_FLOW_STEPS[0]['messages']>([])
+  const [displayedCount, setDisplayedCount] = useState(0)
+
+  const currentStep = EXAMPLE_FLOW_STEPS[activeStep] ?? EXAMPLE_FLOW_STEPS[0]
+  const visibleMessages = currentStep.messages.slice(0, displayedCount)
 
   useEffect(() => {
     const step = EXAMPLE_FLOW_STEPS[activeStep]
-    setVisibleMessages([])
+    if (!step) return
 
+    setDisplayedCount(0)
+
+    let cancelled = false
     const timeouts: ReturnType<typeof setTimeout>[] = []
-    let messageIndex = 0
 
-    const showNextMessage = () => {
-      if (messageIndex < step.messages.length) {
-        setVisibleMessages((prev) => [...prev, step.messages[messageIndex]])
-        messageIndex++
-        timeouts.push(setTimeout(showNextMessage, 800))
-      } else {
-        timeouts.push(
-          setTimeout(() => {
-            setActiveStep((prev) => (prev + 1) % EXAMPLE_FLOW_STEPS.length)
-          }, 2500)
-        )
-      }
+    step.messages.forEach((_, index) => {
+      timeouts.push(
+        setTimeout(() => {
+          if (!cancelled) setDisplayedCount(index + 1)
+        }, 400 + index * 800)
+      )
+    })
+
+    const advanceDelay = 400 + step.messages.length * 800 + 2500
+    timeouts.push(
+      setTimeout(() => {
+        if (!cancelled) {
+          setActiveStep((prev) => (prev + 1) % EXAMPLE_FLOW_STEPS.length)
+        }
+      }, advanceDelay)
+    )
+
+    return () => {
+      cancelled = true
+      timeouts.forEach(clearTimeout)
     }
-
-    timeouts.push(setTimeout(showNextMessage, 400))
-    return () => timeouts.forEach(clearTimeout)
   }, [activeStep])
 
   return (
@@ -338,7 +350,7 @@ export default function Home() {
                           </div>
                         </div>
                       ))}
-                      {visibleMessages.length > 0 && visibleMessages.length < EXAMPLE_FLOW_STEPS[activeStep].messages.length && (
+                      {visibleMessages.length > 0 && visibleMessages.length < currentStep.messages.length && (
                         <div className="flex justify-start">
                           <div className="bg-white px-4 py-3 rounded-lg rounded-tl-none shadow-sm">
                             <div className="flex gap-1">
